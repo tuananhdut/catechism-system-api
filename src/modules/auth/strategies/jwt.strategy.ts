@@ -29,7 +29,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
   async validate(
     payload: JwtPayload
-  ): Promise<{ id: string; email: string; username: string; vaiTro: string }> {
+  ): Promise<{ id: string; email: string | null; username: string; role: string }> {
     const user = await this.userRepository.findById(payload.sub);
     if (!user) throw new UnauthorizedException('Không tìm thấy người dùng');
 
@@ -37,7 +37,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       id: user.id,
       email: user.email,
       username: user.username,
-      vaiTro: user.vaiTro,
+      role: user.role,
     };
   }
 }

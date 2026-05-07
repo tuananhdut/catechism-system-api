@@ -12,32 +12,84 @@ datasource db {
 //  Enums
 // ─────────────────────────────────────────────
 
-enum VaiTro {
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum StudentStatus {
+  STUDYING
+  SUSPENDED
+  GRADUATED
+  TRANSFERRED
+}
+
+enum ParentRelation {
+  FATHER
+  MOTHER
+  GUARDIAN
+}
+
+enum Semester {
+  SEMESTER_1
+  SEMESTER_2
+}
+
+enum AttendanceStatus {
+  PRESENT           // Có mặt
+  ABSENT_EXCUSED    // Vắng có phép
+  ABSENT_UNEXCUSED  // Vắng không phép
+}
+
+enum ScoreType {
+  ORAL          // Kiểm tra miệng - hệ số 1
+  QUIZ_15       // Kiểm tra 15 phút - hệ số 1
+  TEST          // Kiểm tra 1 tiết - hệ số 2
+  SEMESTER_EXAM // Thi học kỳ - hệ số 3
+}
+
+enum UserRole {
   ADMIN
-  BAN_DIEU_HANH
-  GLV_TRUONG_KHOI
-  GLV_TRUONG_LOP
+  GRADE_LEADER 
+  TEACHER      
+  STUDENT
+  PARENT
 }
 
 // ─────────────────────────────────────────────
 //  Auth
 // ─────────────────────────────────────────────
 
-model NguoiDung {
-  id        String    @id @default(uuid()) @db.Uuid
-  email     String    @unique @db.VarChar(255)
-  username  String    @unique @db.VarChar(100)
-  password  String    @db.VarChar(255)
-  vaiTro    VaiTro    @default(GLV_TRUONG_LOP)
-  hoTen     String    @db.VarChar(200)
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
 
-  refreshTokens RefreshToken[]
+  username     String   @unique @db.VarChar(100)
+  email        String?  @unique @db.VarChar(255)
+  password     String   @db.VarChar(255)
 
-  @@map("nguoi_dungs")
+  fullName     String    @db.VarChar(200)
+  saintName    String    @db.VarChar(100)
+  birthDate    DateTime
+  gender       Gender
+  phone        String?   @db.VarChar(20)
+  address      String    @db.VarChar(500)
+
+  role         UserRole @default(STUDENT)
+
+  active       Boolean   @default(true)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  refreshTokens  RefreshToken[]
+  teacherProfile TeacherProfile?
+  studentProfile StudentProfile?
+  parentProfile  ParentProfile?
+
+  @@index([role])
+  @@index([active, deletedAt])
+  @@map("users")
 }
 
 model RefreshToken {
@@ -48,9 +100,255 @@ model RefreshToken {
   isRevoked Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  nguoiDung NguoiDung @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
+}
+
+model TeacherProfile {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @unique @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classes     ClassTeacher[]
+  scores      Score[]
+  attendances Attendance[]
+  ledGrades   Grade[]
+
+  @@map("teacher_profiles")
+}
+
+model StudentProfile {
+  id          String        @id @default(uuid()) @db.Uuid
+  userId      String        @unique @db.Uuid
+  studentCode String        @unique @db.VarChar(20)
+  phoneNumber String?       @db.VarChar(20)
+
+  status    StudentStatus @default(STUDYING)
+  notes     String?       @db.Text
+
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  deletedAt DateTime?
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parents             StudentParent[]
+  classes             ClassStudent[]
+  scores              Score[]
+  averageScores       AverageScore[]
+  attendances         Attendance[]
+  attendanceSummaries AttendanceSummary[]
+
+  @@map("student_profiles")
+}
+
+model StudentParent {
+  studentId String         @db.Uuid
+  parentId  String         @db.Uuid
+  relation  ParentRelation
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parent  ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@id([studentId, parentId])
+  @@map("student_parents")
+}
+
+model ParentProfile {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @unique @db.Uuid
+  phoneNumber String?   @db.VarChar(20)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  children StudentParent[]
+
+  @@map("parent_profiles")
+}
+
+// ─────────────────────────────────────────────
+//  Academic
+// ─────────────────────────────────────────────
+
+model AcademicYear {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @unique @db.VarChar(50)
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean   @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  classes Class[]
+
+  @@map("academic_years")
+}
+
+model Grade {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @db.VarChar(100)
+  level       Int       @unique
+  description String?   @db.Text
+  leaderId    String?   @db.Uuid
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  leader  TeacherProfile? @relation(fields: [leaderId], references: [id])
+  classes Class[]
+
+  @@map("grades")
+}
+
+model Class {
+  id             String    @id @default(uuid()) @db.Uuid
+  name           String    @db.VarChar(100)
+  gradeId        String    @db.Uuid
+  academicYearId String    @db.Uuid
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  grade               Grade              @relation(fields: [gradeId], references: [id])
+  academicYear        AcademicYear       @relation(fields: [academicYearId], references: [id])
+  teachers            ClassTeacher[]
+  students            ClassStudent[]
+  scores              Score[]
+  averageScores       AverageScore[]
+  attendances         Attendance[]
+  attendanceSummaries AttendanceSummary[]
+
+  @@unique([name, gradeId, academicYearId])
+  @@map("classes")
+}
+
+model ClassTeacher {
+  classId   String @db.Uuid
+  teacherId String @db.Uuid
+
+  class   Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@id([classId, teacherId])
+  @@map("class_teachers")
+}
+
+model ClassStudent {
+  classId   String @db.Uuid
+  studentId String @db.Uuid
+
+  class   Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([classId, studentId])
+  @@map("class_students")
+}
+
+// ─────────────────────────────────────────────
+//  Scores
+// ─────────────────────────────────────────────
+
+model Score {
+  id        String    @id @default(uuid()) @db.Uuid
+
+  studentId String    @db.Uuid
+  classId   String    @db.Uuid
+  teacherId String    @db.Uuid
+
+  type      ScoreType
+  semester  Semester
+  value     Decimal   @db.Decimal(4, 2)
+  notes     String?   @db.VarChar(500)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id])
+
+  @@index([classId, studentId, semester])
+  @@index([teacherId])
+  @@map("scores")
+}
+
+model AverageScore {
+  id        String   @id @default(uuid()) @db.Uuid
+
+  studentId String   @db.Uuid
+  classId   String   @db.Uuid
+  semester  Semester
+  average   Decimal  @db.Decimal(4, 2)
+
+  updatedAt DateTime @updatedAt
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, classId, semester])
+  @@index([classId])
+  @@index([studentId])
+  @@map("average_scores")
+}
+
+// ─────────────────────────────────────────────
+//  Attendance
+// ─────────────────────────────────────────────
+
+model Attendance {
+  id        String           @id @default(uuid()) @db.Uuid
+
+  classId   String           @db.Uuid
+  studentId String           @db.Uuid
+  teacherId String           @db.Uuid
+
+  date      DateTime         @db.Date
+  semester  Semester
+  status    AttendanceStatus @default(PRESENT)
+  notes     String?          @db.VarChar(500)
+
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  class   Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id])
+
+  @@unique([classId, studentId, date])
+  @@index([classId, date])
+  @@index([studentId, semester])
+  @@map("attendances")
+}
+
+model AttendanceSummary {
+  id                   String   @id @default(uuid()) @db.Uuid
+
+  studentId            String   @db.Uuid
+  classId              String   @db.Uuid
+  semester             Semester
+
+  totalSessions        Int      @default(0)
+  presentCount         Int      @default(0)
+  absentExcusedCount   Int      @default(0)
+  absentUnexcusedCount Int      @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, classId, semester])
+  @@index([classId])
+  @@map("attendance_summaries")
 }
 
 model LoginAttempt {

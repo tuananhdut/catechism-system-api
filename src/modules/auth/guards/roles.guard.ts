@@ -14,10 +14,10 @@ export class RolesGuard implements CanActivate {
 
     if (!requiredRoles || requiredRoles.length === 0) return true;
 
-    const request = context.switchToHttp().getRequest<{ user?: { vaiTro?: string } }>();
+    const request = context.switchToHttp().getRequest<{ user?: { role?: string } }>();
     const user = request.user;
 
-    if (!user || !requiredRoles.includes(user.vaiTro ?? '')) {
+    if (!user || !requiredRoles.includes(user.role ?? '')) {
       throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
     }
 

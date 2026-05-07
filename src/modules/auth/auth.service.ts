@@ -50,14 +50,14 @@ export class AuthService {
     }
 
     await this.loginAttemptRepository.resetAttempts(user.username);
-    return this._generateTokensForUser(user.id, user.email, user.username, user.vaiTro);
+    return this._generateTokensForUser(user.id, user.email, user.username, user.role);
   }
 
   async createUser(dto: CreateUserRequest): Promise<UserProfileResponse> {
     if (await this.userRepository.findByUsername(dto.username)) {
       throw new ConflictException('Tên đăng nhập đã tồn tại');
     }
-    if (await this.userRepository.findByEmail(dto.email)) {
+    if (dto.email && (await this.userRepository.findByEmail(dto.email))) {
       throw new ConflictException('Email đã tồn tại');
     }
 
@@ -65,17 +65,22 @@ export class AuthService {
     const user = await this.userRepository.create({
       username: dto.username,
       password: hashedPassword,
-      hoTen: dto.hoTen,
+      fullName: dto.fullName,
+      saintName: dto.saintName,
+      birthDate: dto.birthDate,
+      gender: dto.gender,
+      address: dto.address,
       email: dto.email,
-      vaiTro: dto.vaiTro,
+      phone: dto.phone,
+      role: dto.role,
     });
 
     return {
       id: user.id,
       email: user.email,
       username: user.username,
-      hoTen: user.hoTen,
-      vaiTro: user.vaiTro,
+      fullName: user.fullName,
+      role: user.role,
       createdAt: user.createdAt,
     };
   }
@@ -120,7 +125,7 @@ export class AuthService {
         payload.sub,
         payload.email,
         payload.username,
-        payload.vaiTro
+        payload.role
       );
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
@@ -144,19 +149,19 @@ export class AuthService {
       id: user.id,
       email: user.email,
       username: user.username,
-      hoTen: user.hoTen,
-      vaiTro: user.vaiTro,
+      fullName: user.fullName,
+      role: user.role,
       createdAt: user.createdAt,
     };
   }
 
   private async _generateTokensForUser(
     userId: string,
-    email: string,
+    email: string | null,
     username: string,
-    vaiTro: string
+    role: string
   ): Promise<LoginResponse> {
-    const payload: JwtPayload = { sub: userId, email, username, vaiTro };
+    const payload: JwtPayload = { sub: userId, email, username, role };
 
     const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
     const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
@@ -175,8 +180,8 @@ export class AuthService {
         id: user.id,
         email: user.email,
         username: user.username,
-        hoTen: user.hoTen,
-        vaiTro: user.vaiTro,
+        fullName: user.fullName,
+        role: user.role,
       },
     };
   }
